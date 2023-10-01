@@ -5,7 +5,7 @@
 run_type: "train"
 debug_lvl: 0  # 0 disables debugging and verbosity completely, >1 activates additional debugging functionality
 global_seed: 1234
-cuda: True
+cuda: False
 
 # global paths and logging
 log_lvl: INFO

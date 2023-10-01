@@ -11,6 +11,7 @@ from tianshou.utils import TensorboardLogger
 
 import time
 import tqdm
+import pickle
 from collections import defaultdict
 
 from tianshou.policy import BasePolicy
@@ -28,6 +29,7 @@ from tianshou.data import (
 from lib.routing import RPInstance, RPSolution, RP_TYPES
 from lib.scheduling import JSSPInstance, JSSPSolution, JSSP_TYPES
 from lib.env.utils import parse_solutions
+from lib.mingpt import dt_model, utils
 
 logger = logging.getLogger(__name__)
 
@@ -254,6 +256,7 @@ def test_episode(
         n_episode = max(n_episode-num_render_eps, 0)
     # execute remaining number of eval episodes
     result = collector.collect(n_episode=n_episode, render=0)
+    collector.create_dt_dataset()
     # add result of rendered eps
     if add_result is not None:
         for k, v in add_result.items():
@@ -270,6 +273,7 @@ def test_episode(
     result['final_costs'] = costs
     sols = parse_solutions(info_buf.get('solution')[dones])  # type: ignore
     run_times = info_buf.get('time_elapsed')[dones]
+
 
     p = problem.upper()
     instances = parse_instances(info_buf.get('instance')[dones], problem=p)
@@ -480,10 +484,15 @@ class TestCollector(Collector):
         exploration_noise: bool = False,
     ) -> None:
         super().__init__(policy, env, buffer, preprocess_fn, exploration_noise)
+        self.data_points = []
 
     def reset_env(self) -> None:
         super().reset_env()
         self._ready_env_ids = np.arange(self.env_num)
+
+    def create_dt_dataset(self):
+        with open('data_points_dt.pkl', 'wb') as f:
+            pickle.dump(self.data_points, f)
 
     def collect(
         self,
@@ -541,59 +550,67 @@ class TestCollector(Collector):
         episode_rews = []
         episode_lens = []
         episode_start_indices = []
+        current_instance = []
 
+        step = 0
+        dt = decision_transformer(self.data.obs) # TODO: Rewards to go berechnen
+        ############
         while True:
             whole_data = self.data
             self.data = self.data[ready_env_ids]
             assert len(whole_data) == self.env_num  # major difference
             # restore the state: if the last state is None, it won't store
-            last_state = self.data.policy.pop("hidden_state", None)
+            last_state = None #self.data.policy.pop("hidden_state", None)
 
             # get the next action
-            if random:
-                self.data.update(
-                    act=[self._action_space[i].sample() for i in ready_env_ids])
+            if no_grad:
+                with torch.no_grad(): # TODO Hier muss ich irgendwie die actions und observations (Nach aggregator) Speichern
+                    # faster than retain_grad version
+                    # self.data.obs will be used by agent to get result
+                    result = self.policy(self.data, None)
+                    aggregated_state = self.policy.model.current_aggregated_state
+                    dt.update_states(aggregated_state.aggregated_emb[0])
             else:
-                if no_grad:
-                    with torch.no_grad():  # faster than retain_grad version
-                        # self.data.obs will be used by agent to get result
-                        result = self.policy(self.data, last_state)
-                else:
-                    result = self.policy(self.data, last_state)
-                # update state / act / policy into self.data
-                policy = result.get("policy", Batch())
-                assert isinstance(policy, Batch)
-                state = result.get("state", None)
-                if state is not None:
-                    policy.hidden_state = state  # save state into buffer
-                act = to_numpy(result.act)
-                if self.exploration_noise:
-                    act = self.policy.exploration_noise(act, self.data)
-                self.data.update(policy=policy, act=act)
+                result = self.policy(self.data, last_state)
+            # update state / act / policy into self.data
+            policy = result.get("policy", Batch())
+            assert isinstance(policy, Batch)
+            #act = dt.get_sampled_action(step)
+            act = to_numpy(result.act)
+
+            self.data.update(policy=policy, act=act)
 
             # get bounded and remapped actions first (not saved into buffer)
             action_remap = self.policy.map_action(self.data.act)
             # step in env
             obs_next, rew, done, info = self.env.step(
                 action_remap, ready_env_ids)  # type: ignore
-
+            dt.update_rewards(rew)
+            step = info[0]['step'] + 1
+            # create_dataset uncomment for dataset creation
+            # data_point = {
+            #               'step_number': step_count,
+            #               'observation': aggregated_state.aggregated_emb[0],
+            #               'action': action_remap[0],
+            #               'reward': rew[0],
+            #               'makespan': self.data.obs[0]["meta_features"][2].item(),
+            #               'returns_to_go': None,
+            #               }
+            # current_instance.append(data_point)
             # change self.data here because ready_env_ids has changed
             ready_env_ids = np.array([i["env_id"] for i in info])
             self.data = whole_data[ready_env_ids]
             self.data.update(obs_next=obs_next, rew=rew, done=done, info=info)
 
-            if render:
-                self.env.render()
-                if render > 0 and not np.isclose(render, 0):
-                    time.sleep(render)
 
             if step_count == 0:
                 self.buffer.add(self.data, buffer_ids=ready_env_ids)
-
             # collect statistics
             step_count += len(ready_env_ids)
 
             if np.any(done):
+                self.data_points.append(current_instance)
+                current_instance = []
                 env_ind_local = np.where(done)[0]
                 env_ind_global = ready_env_ids[env_ind_local]
                 episode_count += len(env_ind_local)
@@ -615,6 +632,8 @@ class TestCollector(Collector):
                 self.data.obs_next[env_ind_local] = obs_reset
                 for i in env_ind_local:
                     self._reset_state(i)
+                step = 0
+                dt.reset(self.data.obs_next)
 
             try:
                 whole_data.obs[ready_env_ids] = self.data.obs_next
@@ -651,3 +670,67 @@ class TestCollector(Collector):
             "lens": lens,
             "idxs": idxs,
         }
+
+class decision_transformer():
+    def __init__(self,tianshou_obs):
+        self.device = "cpu"
+        self.action_sequence = None
+        self.reward_sequence = []
+        self.reward_sum = 0
+        self.state = None
+        self.all_states = None
+        self.returns_to_go = [self.calc_neuroLs_rtg(tianshou_obs)]
+
+        self.model_conf = dt_model.GPTConfig(vocab_size=10, block_size=10, n_layer=6, n_head=8, n_embd=128, max_timestep=99, observation_size=128)
+        self.model_dt = dt_model.GPT(self.model_conf)
+        self.model_dt.load_state_dict(torch.load("/mnt/c/Users/fabia/OneDrive/MyUni/Masterarbeit/NeuroLS_DecisionTransformer/lib/utils/trained_model_nls.pt"))
+        self.agent = self.model_dt
+        self.agent.eval()
+
+    def calc_neuroLs_rtg(self,tianshou_obs):
+        lower_bound = tianshou_obs.instance_lower_bound[0]
+        initial_makespan = tianshou_obs["meta_features"][0][2].item()
+        return_to_go = initial_makespan - lower_bound
+        return return_to_go
+
+    def update_rewards(self, reward):
+        self.returns_to_go += [self.returns_to_go[-1] - reward]
+        self.reward_sequence += [reward]
+        self.reward_sum += reward
+    def update_states(self, state):
+        state = torch.as_tensor(state)
+        self.state = state.unsqueeze(0).unsqueeze(0).to(self.device)
+        if (self.all_states is None):
+            self.all_states = self.state
+        else:
+            self.all_states = torch.cat([self.all_states, self.state.type(torch.float32).to(self.device)],dim=1)
+    def get_sampled_action(self,step):
+        # all_states has all previous states and rtgs has all previous rtgs (will be cut to block_size in utils.sample)
+        # timestep is just current timestep
+        if self.action_sequence is None:
+            actions = None
+            self.action_sequence = []
+        else:
+            actions =  torch.tensor(self.action_sequence, dtype=torch.long).to(self.device).unsqueeze(
+                1).unsqueeze(0)
+        sampled_action = utils.sample(self.agent, self.all_states, 1, temperature=1.0, sample=True,
+                                      actions=actions,
+                                      rtgs=torch.tensor(self.returns_to_go, dtype=torch.float64).to(
+                                          self.device).unsqueeze(
+                                          0).unsqueeze(-1),
+                                      timesteps=(min(step, 100) * torch.ones((1, 1, 1), dtype=torch.int64).to(
+                                          self.device)))
+
+        action = sampled_action.cpu().numpy()[0, -1]
+        self.action_sequence += [action]
+        return sampled_action.cpu().numpy()[0]
+
+    def reset(self,tianshou_obs):
+        self.action_sequence = None
+        self.reward_sequence = []
+        self.state = None
+        self.all_states = None
+        self.returns_to_go = [self.calc_neuroLs_rtg(tianshou_obs)]
+
+
+

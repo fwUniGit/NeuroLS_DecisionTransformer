@@ -396,6 +396,5 @@ class BaseEnv(gym.Env):
         """Take new cost and current/best cost and computes the reward."""
         rew = cost - cost_new
         self.previous_reward = rew
-        if clamp is not None:
-            rew = max(rew, clamp)
+        rew = max(rew, 0)
         return rew

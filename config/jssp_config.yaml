@@ -7,7 +7,7 @@ defaults:
   - jssp_ls: se_cet_all
   - model: gnn_flat
   - policy: dqn
-  - meta: run_jssp
+  - meta: eval_jssp
   - hp_override: none
   - override hydra/job_logging: simple
 

@@ -8,7 +8,6 @@ import math
 
 import numpy as np
 import matplotlib
-import matplotlib.pyplot as plt
 from matplotlib.animation import ImageMagickWriter
 
 import torch
@@ -24,8 +23,8 @@ from lib.scheduling import JSSPGraph, JSSPGenerator
 # disable matplotlib logger for non-essential cases
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
 if "PYCHARM_HOSTED" in os.environ:
-    matplotlib.use("TKAgg")     # for use with GUI/IDE
-
+    matplotlib.use("Agg")     # for use with GUI/IDE
+import matplotlib.pyplot as plt
 
 def time_out_handler(signum, frame):
     raise TimeoutError(f"time out on function call")

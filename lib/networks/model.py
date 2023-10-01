@@ -94,6 +94,7 @@ class Model(nn.Module):
                 **self.aggregator_args)
         else:
             self.aggregator = DummyAggregator()
+        self.current_aggregated_state = None
 
         # initialize decoder network
         decoder_cl = getattr(decoders, decoder_type) if isinstance(decoder_type, str) else decoder_type
@@ -114,7 +115,7 @@ class Model(nn.Module):
         self.to(device=self._device)
 
     def __repr__(self):
-        super_repr = super().__repr__()     # get torch module str repr
+        super_repr = super().__repr__()  # get torch module str repr
         n_enc_p = count_parameters(self.encoder)
         n_agg_p = count_parameters(self.aggregator)
         n_dec_p = count_parameters(self.decoder)
@@ -124,7 +125,7 @@ class Model(nn.Module):
                    f"\n  (encoder): {n_enc_p} " \
                    f"\n  (aggregator): {n_agg_p} " \
                    f"\n  (decoder): {n_dec_p + n_iqn_p} " \
-                   f"\n  total: {n_enc_p+n_agg_p+n_dec_p+n_iqn_p}"
+                   f"\n  total: {n_enc_p + n_agg_p + n_dec_p + n_iqn_p}"
         return super_repr + add_repr
 
     def reset_parameters(self):
@@ -169,10 +170,10 @@ class Model(nn.Module):
             # during inference we can keep static components (e.g. node neighborhood)
             # fixed and do not need to recompute them every step
             if (
-                self.training   # during training
-                or len(info.shape) == 0     # on init
-                or bs != self._ref_bs       # bs change
-                or (len(info.shape) > 0 and np.any(info['step'] == 0))  # start of new episode
+                    self.training  # during training
+                    or len(info.shape) == 0  # on init
+                    or bs != self._ref_bs  # bs change
+                    or (len(info.shape) > 0 and np.any(info['step'] == 0))  # start of new episode
             ):
                 self._ref_bs = bs
                 self._idx_inc = torch.arange(0, self.node_max_dim * bs, self.node_max_dim,
@@ -188,9 +189,9 @@ class Model(nn.Module):
             if self.problem.upper() == "JSSP":
                 prep_obs = GraphObs(
                     batch_size=bs,
-                    batch_idx=None,     # type: ignore
+                    batch_idx=None,  # type: ignore
                     node_features=obs['node_features'].view(-1, self.node_feature_dim),
-                    current_sol=None,   # type: ignore
+                    current_sol=None,  # type: ignore
                     current_sol_edges=cur_sol_e,  # type: ignore
                     current_sol_weights=obs['current_sol_w'].view(-1),
                     best_sol=None,  # type: ignore
@@ -231,17 +232,18 @@ class Model(nn.Module):
                 best_sol_seqs=obs['best_sol_seq'],
                 meta_features=obs['meta_features'],
             )
-        
+
         logits, state = self._dqn_forward(bs, prep_obs, state, recompute=recompute, **kwargs)
         if self.policy_type == "IQN":
             # obs batch object does not need mask since logits are already masked, i.e. set to -inf where infeasible
-            logits = self.iqn(logits, sample_size, **kwargs)    # returns logits tuple!
+            logits = self.iqn(logits, sample_size, **kwargs)  # returns logits tuple!
 
         return logits, state
 
     def _dqn_forward(self,
                      bs: int,
                      prep_obs: Union[Obs, GraphObs],
+
                      state: Optional[np.ndarray] = None,
                      **kwargs) -> Tuple[Union[Tensor, Tuple], Any]:
         """Inner forward calling encoder, aggregator and decoder models."""
@@ -251,6 +253,8 @@ class Model(nn.Module):
         emb = self.aggregator(
             prep_obs, emb, dims=(bs, self.node_max_dim, self.node_feature_dim)
         )
+        # TODO Take embedding after agregator
+        self.current_aggregated_state = emb
         # decode
         return self.decoder(emb, state)
 

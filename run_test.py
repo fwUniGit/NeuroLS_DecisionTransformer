@@ -55,7 +55,6 @@ def run():
         args['group_id'] = gid
         rfile = args['run_file']
         # manage directories and files
-        print(os.getcwd())
         if inst_pth is not None:
             ddir = os.path.split(os.path.dirname(inst_pth))[0]
             inst_dir = os.path.dirname(inst_pth)
@@ -105,35 +104,8 @@ def run():
                 run_args = f"meta={args['eval_cfg']} " \
                            f"tester_cfg.test_env_cfg.data_file_path={data_pth} " \
                            f"tester_cfg.test_batch_size=1 " \
-                           f"tester_cfg.test_dataset_size=10 " \
+                           f"tester_cfg.test_dataset_size=1 " \
                            f"tester_cfg.env_kwargs.num_steps={steps}"
-            elif m == "meta":
-                run_args = f"policy={args['policy']} " \
-                           f"env_cfg.data_file_path={data_pth} " \
-                           f"batch_size=1 " \
-                           f"dataset_size=1 " \
-                           f"env_kwargs.num_steps={steps}"
-            elif m == "pdr":
-                run_args = f"policy_cfg.method={pol.upper()} " \
-                           f"data_file_path={data_pth} " \
-                           f"batch_size=1 " \
-                           f"dataset_size=1"
-                steps = 0
-            elif m == "dact":
-                run_args = f"data_file_path={data_pth} " \
-                           f"batch_size=1 " \
-                           f"dataset_size=1 " \
-                           f"T_max={steps}"
-            elif m == "gort":
-                run_args = f"policy={args['policy']} " \
-                           f"data_file_path={data_pth} " \
-                           f"batch_size=1 " \
-                           f"dataset_size=1 " \
-                           f"policy_cfg.solution_limit={steps}"
-            else:
-                run_args = f"data_file_path={data_pth} " \
-                           f"batch_size=1 " \
-                           f"dataset_size=1"
                 if len(args['policy']) > 0:
                     run_args += f" policy={args['policy']}"
 
@@ -226,7 +198,7 @@ def run():
         print(results_str["num_vehicles_mean"])
         print(results_str["run_time_mean"])
         print(results_str["run_time_total"])
-#1347
+
 
 if __name__ == "__main__":
     run()

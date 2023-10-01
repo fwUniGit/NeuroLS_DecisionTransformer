@@ -72,10 +72,12 @@ class JSSPEnv(BaseEnv):
         self.best_sol_w = None
         self.nbh_edges = None
         self.nbh_weights = None
+        self.current_instance_lower_bound = None
 
         self.run_until_query = False
         self.max_num_vec = 0
 
+        self._node_idx_set = None
         self._node_idx_set = None
         self._restart_mode = self.mode_args['restart_mode'].lower()
         self._restart_args = self.mode_args.get('restart_args', {})
@@ -118,6 +120,7 @@ class JSSPEnv(BaseEnv):
             'nbh_edges': gym.spaces.Box(low=-1, high=N, shape=(2, e_max), dtype=np.int32),
             'nbh_weights': gym.spaces.Box(low=0, high=float('inf'), shape=(e_max,), dtype=self.float_prec),
             'meta_features': gym.spaces.Box(low=-float('inf'), high=float('inf'), shape=[8], dtype=self.float_prec),
+            'instance_lower_bound': gym.spaces.Box(low=-float('inf'), high=float('inf'), shape=[1], dtype=self.float_prec),
         }
         return gym.spaces.Dict(dict_space)
 
@@ -132,6 +135,7 @@ class JSSPEnv(BaseEnv):
             'best_sol_seq': self.best_sol_seq,  # best machine sequences
             'nbh_edges': self.nbh_edges,    # job graph
             'nbh_weights': self.nbh_weights,    # job graph weights
+            'instance_lower_bound': self.current_instance_lower_bound,
             'meta_features': np.array([
                 self.previous_accept,
                 self.previous_reward,
@@ -366,6 +370,7 @@ class JSSPEnv(BaseEnv):
     def _init_instance(self, instance: JSSPInstance, **kwargs):
         """Unpack all relevant data, load it and create initial solution."""
         self.instance = instance
+        self.current_instance_lower_bound = self.calc_lower_bound(instance)
         N = instance.graph_size
         self._node_idx_set = np.arange(N)
         self.solver.load_problem(instance)
@@ -423,6 +428,15 @@ class JSSPEnv(BaseEnv):
         )
         self._render_step += 1
         return self.viewer.render_rgb()
+
+    def calc_lower_bound(self, instance):
+        machine_runtimes = np.zeros(instance.num_machines)
+        for job in instance.durations:
+            for i, duration in enumerate(job):
+                machine_runtimes[i] += duration
+
+        return np.max(machine_runtimes)
+
 
 
 #

@@ -17,7 +17,7 @@ checkpoint_save_path: 'checkpoints/'
 
 # SELECT_EPSILON-SET-ALL
 ### 15x15 ###
-checkpoint_load_path: checkpoints/jssp_15x15_uniform/SELECT_EPSILON-SET-ALL/ep80(last)_model_rew=0.002940.ckpt
+#checkpoint_load_path: checkpoints/jssp_15x15_uniform/SELECT_EPSILON-SET-ALL/ep80(last)_model_rew=0.002940.ckpt
 ### 20x15 ###
 #checkpoint_load_path: checkpoints/jssp_20x15_uniform/SELECT_EPSILON-SET-ALL/ep72_model_rew=0.007835.ckpt
 ### 20x20 ###
@@ -43,7 +43,7 @@ checkpoint_load_path: checkpoints/jssp_15x15_uniform/SELECT_EPSILON-SET-ALL/ep80
 
 # SELECT_EPSILON-SELECT_LS+-ALL
 ### 15x15 ###
-#checkpoint_load_path: checkpoints/jssp_15x15_uniform/SELECT_EPSILON-SELECT_LS+-ALL/ep25_model_rew=0.008621.ckpt
+checkpoint_load_path: checkpoints/jssp_15x15_uniform/SELECT_EPSILON-SELECT_LS+-ALL/ep25_model_rew=0.008621.ckpt
 ### 20x15 ###
 #checkpoint_load_path: checkpoints/jssp_20x15_uniform/SELECT_EPSILON-SELECT_LS+-ALL/ep64_model_rew=0.007597.ckpt
 ### 20x20 ###
@@ -73,7 +73,7 @@ tester_cfg:
       method: 'FDD_MWKR'
     num_steps: 100
     acceptance_mode: 'SELECT_EPSILON'
-    operator_mode:  'SET' # 'SELECT_LS' # 'SELECT_LS+'
+    operator_mode:  'SELECT_LS+' #'SET' # 'SELECT_LS' # 'SELECT_LS+'
     position_mode: 'ALL'
     mode_args:
       search_criterion: 'best'

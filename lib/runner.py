@@ -37,6 +37,7 @@ class Runner:
     Wraps all setup, training and testing functionality
     of the respective experiments configured by cfg.
     """
+
     def __init__(self, cfg: DictConfig):
 
         # fix path aliases changed by hydra
@@ -119,7 +120,7 @@ class Runner:
             dataset_size=self.cfg.val_dataset_size,
             **val_env_cfg
         )
-        self.val_env.seed(self.cfg.global_seed+1)
+        self.val_env.seed(self.cfg.global_seed + 1)
 
     def _get_env_cl(self):
         # dont need additional graph support when using feed forward encoder
@@ -139,8 +140,8 @@ class Runner:
 
         env_modes = {
             'acceptance': a_mode,
-            'operator': o_mode,
-            'position': p_mode,
+            'operator': o_mode,  # NOTE => What is SET
+            'position': p_mode,  # NOTE What is position
         }
         self.model = Model(
             problem=self.cfg.problem,
@@ -180,7 +181,7 @@ class Runner:
                 """A hook called at the beginning of training in each epoch."""
                 # linear epsilon decay in the first epoch_final epochs
                 if num_epoch <= epoch_final:
-                    #eps = eps_train - env_step / 1e6 * (eps_train - eps_final)
+                    # eps = eps_train - env_step / 1e6 * (eps_train - eps_final)
                     eps = eps_train - num_epoch / epoch_final * (eps_train - eps_final)
                 elif num_epoch == epoch_final:
                     eps = eps_final
@@ -198,7 +199,7 @@ class Runner:
             self.policy = policy
             self.train_fn = train_fn
             self.test_fn = test_fn
-            
+
         else:
             raise ValueError(f"unknown policy: '{self.cfg.policy}'")
 
@@ -253,7 +254,7 @@ class Runner:
         torch.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
         self.env.seed(seed)
-        self.val_env.seed(seed+1)
+        self.val_env.seed(seed + 1)
 
     def _eval(self, solutions: List[Union[RPSolution, JSSPSolution]]):
         if self.cfg.problem.upper() in RP_TYPES:
@@ -348,7 +349,7 @@ class Runner:
                 f"and action dimensionality is not compatible: \n   {e}")
         self._build_policy()
 
-        size = tester_cfg.test_dataset_size + 3*tester_cfg.test_batch_size     # * test_env_kwargs.num_steps
+        size = tester_cfg.test_dataset_size + 3 * tester_cfg.test_batch_size  # * test_env_kwargs.num_steps
         buf = VectorReplayBuffer(size, tester_cfg.test_batch_size)
         # create collector
         test_collector = TestCollector(
@@ -407,7 +408,7 @@ class Runner:
             "cfg": self.cfg.copy(),
             "model": self.model.state_dict(*args, **kwargs),
             "optim": self.optim.state_dict(),
-            #"rp_buffer": self.rp_buffer.__dict__.copy(),
+            # "rp_buffer": self.rp_buffer.__dict__.copy(),
         }
 
     def load_state_dict(self, state_dict: dict):
@@ -426,7 +427,7 @@ class Runner:
         self.model.load_state_dict(state_dict["model"])
         self._build_policy()
         self.optim.load_state_dict(state_dict['optim'])
-        #self.rp_buffer.__dict__.update(state_dict["rp_buffer"])
+        # self.rp_buffer.__dict__.update(state_dict["rp_buffer"])
         self._build_collectors()
         self._build_callbacks()
 
@@ -458,8 +459,8 @@ def update_path(cfg: DictConfig, fixed_dataset: bool = True):
             )
     if cfg.checkpoint_load_path is not None:
         cfg.checkpoint_load_path = os.path.normpath(
-                os.path.join(cwd, cfg.checkpoint_load_path)
-            )
+            os.path.join(cwd, cfg.checkpoint_load_path)
+        )
     return cfg
 
 
@@ -468,6 +469,6 @@ def remove_dir_tree(root: str, pth: Optional[str] = None):
     if not os.path.isdir(root) and pth is not None:
         # select root directory from path by dir name
         i = pth.index(root)
-        root = pth[:i+len(root)]
+        root = pth[:i + len(root)]
     if os.path.isdir(root):
         shutil.rmtree(root)
