@@ -575,8 +575,8 @@ class TestCollector(Collector):
             # update state / act / policy into self.data
             policy = result.get("policy", Batch())
             assert isinstance(policy, Batch)
-            #act = dt.get_sampled_action(step)
-            act = to_numpy(result.act)
+            act = dt.get_sampled_action(step)
+            #act = to_numpy(result.act)
 
             self.data.update(policy=policy, act=act)
 
@@ -584,7 +584,7 @@ class TestCollector(Collector):
             action_remap = self.policy.map_action(self.data.act)
             # step in env
             obs_next, rew, done, info = self.env.step(
-                action_remap, ready_env_ids)  # type: ignore
+                act, ready_env_ids)  # type: ignore
             dt.update_rewards(rew)
             step = info[0]['step'] + 1
             # create_dataset uncomment for dataset creation
