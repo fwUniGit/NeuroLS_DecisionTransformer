@@ -2,25 +2,22 @@ import os
 import torch.multiprocessing as mp
 import torch.nn as nn
 import torch.distributed as dist
-from src.agents.decision_transformer.mingpt.utils import sample
-from src.environments.environment_loader import EnvironmentLoader
 from torch.utils.data.dataloader import DataLoader
-from torch.optim.lr_scheduler import LambdaLR
 import math
 import numpy as np
 import torch.optim as optim
 import torch
 import wandb
+import subprocess as sp
 
 
 class Trainer:
-    def __init__(self, model, train_dataset, test_dataset, train_data, config):
+    def __init__(self, model, train_dataset, test_dataset, config):
         self.model = model
         self.train_dataset = train_dataset
         self.test_dataset = test_dataset
-        self.train_data = train_data[:100]
         self.config = config
-        self.world_size = 8
+        self.world_size = 4
         os.environ['MASTER_ADDR'] = 'localhost'  #
         os.environ['MASTER_PORT'] = '8123'  #
         self.tokens = 0
@@ -68,19 +65,19 @@ class Trainer:
 
         total_step = len(train_loader)
         best_mean_makespan = float('inf')
+        os.chdir("../")
         for epoch in range(config.max_epochs):
             losses = []
             train_loader.sampler.set_epoch(epoch)
-            for it, (state, action, returns_to_go, timesteps, action_masks) in enumerate(train_loader):
+            for it, (state, action, returns_to_go, timesteps, targets) in enumerate(train_loader):
                 # place data on the correct device
                 states = state.cuda(non_blocking=True)
                 actions = action.cuda(non_blocking=True)
                 returns_to_go = returns_to_go.cuda(non_blocking=True)
                 timesteps = timesteps.cuda(non_blocking=True)
-                action_masks = action_masks.cuda(non_blocking=True)
 
                 with torch.set_grad_enabled(True):
-                    logits, loss = model(states, actions, actions, returns_to_go, timesteps, action_masks)
+                    logits, loss = model(states, actions, actions, returns_to_go, timesteps)
                     losses.append(loss.item())
 
                     model.zero_grad()
@@ -117,89 +114,40 @@ class Trainer:
                         loss.item(), lr)
                     )
             if gpu == 0:
+                out = None
                 mean_loss = np.mean(losses)
-                if epoch % 10 == 0:
-                    mean_makespan_test = self.test_model(self.test_dataset)
-                    mean_makespan_train = self.test_model(self.train_data)
-                    print(mean_loss)
-                    print(mean_makespan_test)
+                if epoch % 50 == 0:
+                    torch.save(model.module.state_dict(),
+                               os.path.join(os.getcwd(),
+                                            "wolz/projects/NeuroLS_DecisionTransformer/trained_model_nls.pt"))
+                    path = os.path.join(os.getcwd(), "wolz/projects/NeuroLS_DecisionTransformer/run_benchmark.py")
+                    path2 = os.path.join(os.getcwd(), "wolz/projects/NeuroLS_DecisionTransformer/run_nls_jssp.py")
+                    path3 = os.path.join(os.getcwd(), "wolz/projects/NeuroLS_DecisionTransformer/data/JSSP/")
+                    cmd = 'python ' + path + ' -r ' + path2 + ' -d ' + path3 + ' -g jssp15x15 -p jssp -m nls -e eval_jssp --args env=jssp15x15_unf -n 100'
+                    try:
+                        print(os.getcwd())
+                        out = sp.run(cmd.split(),
+                                     universal_newlines=True,
+                                     capture_output=True,
+                                     check=True
+                                     )
+                        print(out.stdout)
+                    except sp.CalledProcessError as e:
+                        print(f"encountered error for call: {e.cmd}\n")
+                        print(e.stderr)
+                    makespan = float(out.stdout.split("makespan")[1])
                     if self.wb:
                         wandb.log({"loss": mean_loss})
-                        wandb.log({"mean_makespan": mean_makespan_test})
-                        wandb.log({"mean_makespan_train_data": mean_makespan_train})
+                        if out is not None:
+                            wandb.log({"mm": makespan})
                         wandb.log({"learning_rate": lr})
-                    if mean_makespan_test < best_mean_makespan:
-                        best_mean_makespan = mean_makespan_test
-                        torch.save(model.module.state_dict(), "trained_model.pt")
+                    if makespan < best_mean_makespan+5:
+                        best_mean_makespan = makespan
+                        torch.save(model.module.state_dict(), os.path.join(os.getcwd(),
+                                            "wolz/projects/NeuroLS_DecisionTransformer/trained_model_nls_best.pt"))
+                        wandb.save("wolz/projects/NeuroLS_DecisionTransformer/trained_model_nls_best.pt")
                 else:
                     print(mean_loss)
                     if self.wb:
                         wandb.log({"loss": mean_loss})
                         wandb.log({"learning_rate": lr})
-
-    @torch.no_grad()
-    def test_model(self, dataset):
-        device = "cuda:0"
-        eval_makespan = []
-        env, _ = EnvironmentLoader.load(self.config.env_config, data=dataset)
-        raw_model = self.model.module if hasattr(self.model, "module") else self.model
-        self.model.train(False)
-
-        T_rewards, T_Qs = [], []
-        for i in range(11):
-            state, reward_sum, done = torch.as_tensor(env.reset()), 0, False
-            lower_bound_makespan = env.get_instance_lower_bound_makespan()
-            state = state.type(torch.float32).to(device).unsqueeze(0).unsqueeze(0)
-            returns_to_go = [lower_bound_makespan]
-            action_mask = env.get_action_mask()
-            # first state is from env, first rtg is target return, and first timestep is 0
-            sampled_action = sample(raw_model, state, 1, temperature=1.0, sample=True, actions=None,
-                                    rtgs=torch.tensor(returns_to_go, dtype=torch.long).to(device).unsqueeze(
-                                        0).unsqueeze(-1),
-                                    timesteps=torch.zeros((1, 1, 1), dtype=torch.int64).to(device),
-                                    action_mask=torch.as_tensor(action_mask, dtype=torch.bool).to(device))
-            j = 0
-            all_states = state
-            rewards = []
-            actions = []
-            while not done:
-                action = sampled_action.cpu().numpy()[0, -1]
-                actions += [sampled_action]
-                state, reward, done, action_mask = env.step(action)
-                action_mask = action_mask["mask"]
-                rewards += [reward]
-                state = torch.as_tensor(state)
-                reward_sum += reward
-                j += 1
-                if done:
-                    T_rewards.append(reward_sum)
-                    eval_makespan.append(env.makespan)
-                else:
-                    state = state.unsqueeze(0).unsqueeze(0).to(device)
-                    all_states = torch.cat([all_states, state], dim=1)
-                    returns_to_go += [returns_to_go[-1] - reward]
-                    # all_states has all previous states and rtgs has all previous rtgs (will be cut to block_size in utils.sample)
-                    # timestep is just current timestep
-                    sampled_action = sample(raw_model, all_states, 1, temperature=1.0, sample=True,
-                                            actions=torch.tensor(actions, dtype=torch.long).to(device).unsqueeze(
-                                                1).unsqueeze(0),
-                                            rtgs=torch.tensor(returns_to_go, dtype=torch.long).to(
-                                                device).unsqueeze(0).unsqueeze(-1),
-                                            timesteps=(min(j, self.config.max_timestep) * torch.ones((1, 1, 1),
-                                                                                                     dtype=torch.int64).to(
-                                                device)),
-                                            action_mask=torch.as_tensor(action_mask, dtype=torch.bool).to(device))
-            T_rewards = []
-            print("target return: %d, eval return: %d, diff: %d" % (
-            lower_bound_makespan, eval_makespan[-1], (lower_bound_makespan + eval_makespan[-1])))
-        self.model.train(True)
-        mean_makespan = np.mean(eval_makespan)
-        return mean_makespan
-
-
-from torch.utils.data.distributed import DistributedSampler
-
-
-
-
-

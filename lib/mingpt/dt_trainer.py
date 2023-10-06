@@ -133,7 +133,7 @@ class Trainer:
 
 
         best_mean_makespan = float('inf')
-        wb = False
+        wb = True
         if wb:
             wandb.init(
             project="ma-wolz",
@@ -144,27 +144,33 @@ class Trainer:
         self.tokens = 0  # counter used for learning rate decay
         os.chdir("../")
         for epoch in range(config.max_epochs):
+            out = None
             loss = run_epoch('train', epoch_num=epoch)
-            cmd = 'python run_benchmark.py -r run_nls_jssp.py -d data/JSSP/ -g jssp15x15 -p jssp -m nls -e eval_jssp --args env=jssp15x15_unf -n 100'
-            try:
-                print(os.getcwd())
-                out = sp.run(cmd.split(),
-                    universal_newlines=True,
-                    capture_output=True,
-                    check=True
-                )
-                print(out.stdout)
-            except sp.CalledProcessError as e:
-                print(f"encountered error for call: {e.cmd}\n")
-                print(e.stderr)
+            if epoch % 10 == 0:
+                torch.save(raw_model.state_dict(), os.path.join(os.getcwd(),"wolz/projects/NeuroLS_DecisionTransformer/trained_model_nls.pt"))            
+                path = os.path.join(os.getcwd(), "wolz/projects/NeuroLS_DecisionTransformer/run_benchmark.py")
+                path2 = os.path.join(os.getcwd(), "wolz/projects/NeuroLS_DecisionTransformer/run_nls_jssp.py")
+                path3 = os.path.join(os.getcwd(), "wolz/projects/NeuroLS_DecisionTransformer/data/JSSP/")
+                cmd = 'python '+path+ ' -r '+path2+ ' -d '+path3+ ' -g jssp15x15 -p jssp -m nls -e eval_jssp --args env=jssp15x15_unf -n 100'
+                try:
+                    print(os.getcwd())  
+                    out = sp.run(cmd.split(),
+                        universal_newlines=True,
+                        capture_output=True,
+                        check=True
+                    )
+                    print(out.stdout)
+                except sp.CalledProcessError as e:
+                    print(f"encountered error for call: {e.cmd}\n")
+                    print(e.stderr)
 
-            # loss_avg = np.mean(loss)
+            loss_avg = np.mean(loss)
             # mean_makespan= self.test_model()
             # print(mean_makespan)
-            # if wb:
-            #     wandb.log({"loss": loss_avg})
+            if wb:
+                if out is not None:
+                    wandb.log({"mm":float(out.stdout.split("makespan")[1])})                       
+                wandb.log({"loss": loss_avg})
             #     wandb.log({"mean_makespan": mean_makespan})
             # # # supports early stopping based on the test loss, or just save always if no test set is provided
             # # good_model = self.test_dataset is None or test_loss < best_lo
-            if epoch % 10 == 0:
-                torch.save(raw_model.state_dict(), "trained_model_nls.pt")

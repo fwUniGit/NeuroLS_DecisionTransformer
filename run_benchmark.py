@@ -42,6 +42,7 @@ def dict_from_str(s):
 
 def run():
     """Run specified solver on provided benchmark."""
+    os.chdir("wolz/projects/NeuroLS_DecisionTransformer/")
     args = get_args()
     grps = deepcopy(args['group_id'])
     inst_pth = args['instance_pth']
@@ -222,7 +223,7 @@ def run():
                 print(cost)
                 print(runtime)
         print("-------------------")
-        print(results_str["cost_mean"])
+        print("makespan",results_str["cost_mean"],"makespan")
         print(results_str["num_vehicles_mean"])
         print(results_str["run_time_mean"])
         print(results_str["run_time_total"])

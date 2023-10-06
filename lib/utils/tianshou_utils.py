@@ -681,9 +681,10 @@ class decision_transformer():
         self.all_states = None
         self.returns_to_go = [self.calc_neuroLs_rtg(tianshou_obs)]
 
-        self.model_conf = dt_model.GPTConfig(vocab_size=10, block_size=10, n_layer=6, n_head=8, n_embd=128, max_timestep=99, observation_size=128)
+        self.model_conf = dt_model.GPTConfig(vocab_size=10, block_size=30, n_layer=6, n_head=8, n_embd=128, max_timestep=99, observation_size=128)
         self.model_dt = dt_model.GPT(self.model_conf)
-        self.model_dt.load_state_dict(torch.load("/mnt/c/Users/fabia/OneDrive/MyUni/Masterarbeit/NeuroLS_DecisionTransformer/lib/utils/trained_model_nls.pt"))
+        print(os.getcwd())
+        self.model_dt.load_state_dict(torch.load("/home/wolz/projects/NeuroLS_DecisionTransformer/trained_model_nls.pt"))
         self.agent = self.model_dt
         self.agent.eval()
 
