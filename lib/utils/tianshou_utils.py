@@ -1,9 +1,11 @@
 #
 import os
 import logging
+import string
 from warnings import warn
 from typing import Dict, Optional, Tuple, Callable, Union, Any, List
 
+import numpy
 import numpy as np
 import torch
 from torch.utils.tensorboard import SummaryWriter
@@ -482,9 +484,15 @@ class TestCollector(Collector):
         buffer: Optional[ReplayBuffer] = None,
         preprocess_fn: Optional[Callable[..., Batch]] = None,
         exploration_noise: bool = False,
+        rtg_factor: float = 1,
+        dt_model_name: str = "",
+        dt_active: bool = False
     ) -> None:
         super().__init__(policy, env, buffer, preprocess_fn, exploration_noise)
         self.data_points = []
+        self.rtg_factor = rtg_factor
+        self.dt_model_name = dt_model_name
+        self.dt_active = dt_active
 
     def reset_env(self) -> None:
         super().reset_env()
@@ -553,7 +561,8 @@ class TestCollector(Collector):
         current_instance = []
 
         step = 0
-        dt = decision_transformer(self.data.obs) # TODO: Rewards to go berechnen
+        actions = []
+        if self.dt_active: dt = DecisionTransformer(self.dt_model_name, self.data.obs, self.rtg_factor) # TODO: Rewards to go berechnen
         ############
         while True:
             whole_data = self.data
@@ -569,34 +578,36 @@ class TestCollector(Collector):
                     # self.data.obs will be used by agent to get result
                     result = self.policy(self.data, None)
                     aggregated_state = self.policy.model.current_aggregated_state
-                    dt.update_states(aggregated_state.aggregated_emb[0])
+                    if self.dt_active: dt.update_states(aggregated_state.aggregated_emb[0])
             else:
                 result = self.policy(self.data, last_state)
             # update state / act / policy into self.data
             policy = result.get("policy", Batch())
             assert isinstance(policy, Batch)
-            act = dt.get_sampled_action(step)
-            #act = to_numpy(result.act)
-
+            if self.dt_active:
+                act = dt.get_sampled_action(step)
+            else:
+                act = to_numpy(result.act)
+            actions.append(act)
             self.data.update(policy=policy, act=act)
 
             # get bounded and remapped actions first (not saved into buffer)
             action_remap = self.policy.map_action(self.data.act)
             # step in env
             obs_next, rew, done, info = self.env.step(
-                act, ready_env_ids)  # type: ignore
-            dt.update_rewards(rew)
+               action_remap, ready_env_ids)  # type: ignore
+            if self.dt_active: dt.update_rewards(rew)
             step = info[0]['step'] + 1
-            # create_dataset uncomment for dataset creation
-            # data_point = {
-            #               'step_number': step_count,
-            #               'observation': aggregated_state.aggregated_emb[0],
-            #               'action': action_remap[0],
-            #               'reward': rew[0],
-            #               'makespan': self.data.obs[0]["meta_features"][2].item(),
-            #               'returns_to_go': None,
-            #               }
-            # current_instance.append(data_point)
+            #create_dataset uncomment for dataset creation
+            data_point = {
+                          'step_number': step_count,
+                          'observation': aggregated_state.aggregated_emb[0],
+                          'action': action_remap[0],
+                          'reward': rew[0],
+                          'makespan': self.data.obs[0]["meta_features"][2].item(), #meta_features[2] contains makespan
+                          'returns_to_go': None,
+                          }
+            current_instance.append(data_point)
             # change self.data here because ready_env_ids has changed
             ready_env_ids = np.array([i["env_id"] for i in info])
             self.data = whole_data[ready_env_ids]
@@ -633,7 +644,11 @@ class TestCollector(Collector):
                 for i in env_ind_local:
                     self._reset_state(i)
                 step = 0
-                dt.reset(self.data.obs_next)
+                #if self.save_experiment_data:
+                # save = [self.data.obs.starting_times[0],self.data.obs.machine_sequence[0],actions]
+                # numpy.save(f"{self.data.obs.initial_hash[0]}.npy",save)
+                if self.dt_active: dt.reset(self.data.obs_next)
+                actions = []
 
             try:
                 whole_data.obs[ready_env_ids] = self.data.obs_next
@@ -671,31 +686,33 @@ class TestCollector(Collector):
             "idxs": idxs,
         }
 
-class decision_transformer():
-    def __init__(self,tianshou_obs):
+class DecisionTransformer():
+    def __init__(self,dt_model_name, tianshou_obs, rtg_factor = 1):
         self.device = "cpu"
         self.action_sequence = None
         self.reward_sequence = []
         self.reward_sum = 0
         self.state = None
         self.all_states = None
-        self.returns_to_go = [self.calc_neuroLs_rtg(tianshou_obs)]
+        self.rtg_factor = rtg_factor
+        self.return_to_go_sequence = [self.calc_neuroLs_rtg(tianshou_obs)]
 
-        self.model_conf = dt_model.GPTConfig(vocab_size=10, block_size=30, n_layer=6, n_head=8, n_embd=128, max_timestep=99, observation_size=128)
+
+        self.model_conf = dt_model.GPTConfig(vocab_size=10, block_size=50, n_layer=6, n_head=8, n_embd=128, max_timestep=199, observation_size=128)
         self.model_dt = dt_model.GPT(self.model_conf)
         print(os.getcwd())
-        self.model_dt.load_state_dict(torch.load("/home/wolz/projects/NeuroLS_DecisionTransformer/trained_model_nls.pt"))
-        self.agent = self.model_dt
+        self.model_dt.load_state_dict(torch.load("/mnt/c/Users/fabia/OneDrive/MyUni/Masterarbeit/NeuroLS_DecisionTransformer/lib/trained_models/" + dt_model_name , map_location=torch.device('cpu')))
+        self.agent = self.model_dt.to(self.device)
         self.agent.eval()
 
     def calc_neuroLs_rtg(self,tianshou_obs):
         lower_bound = tianshou_obs.instance_lower_bound[0]
         initial_makespan = tianshou_obs["meta_features"][0][2].item()
         return_to_go = initial_makespan - lower_bound
-        return return_to_go
+        return return_to_go * self.rtg_factor
 
     def update_rewards(self, reward):
-        self.returns_to_go += [self.returns_to_go[-1] - reward]
+        self.return_to_go_sequence += [self.return_to_go_sequence[-1] - reward]
         self.reward_sequence += [reward]
         self.reward_sum += reward
     def update_states(self, state):
@@ -714,12 +731,12 @@ class decision_transformer():
         else:
             actions =  torch.tensor(self.action_sequence, dtype=torch.long).to(self.device).unsqueeze(
                 1).unsqueeze(0)
-        sampled_action = utils.sample(self.agent, self.all_states, 1, temperature=1.0, sample=True,
+        sampled_action = utils.sample(self.agent, self.all_states.to(self.device), 1, temperature=1.0, sample=True,
                                       actions=actions,
-                                      rtgs=torch.tensor(self.returns_to_go, dtype=torch.float64).to(
+                                      rtgs=torch.tensor(self.return_to_go_sequence, dtype=torch.float64).to(
                                           self.device).unsqueeze(
                                           0).unsqueeze(-1),
-                                      timesteps=(min(step, 100) * torch.ones((1, 1, 1), dtype=torch.int64).to(
+                                      timesteps=(min(step, 200) * torch.ones((1, 1, 1), dtype=torch.int64).to(
                                           self.device)))
 
         action = sampled_action.cpu().numpy()[0, -1]
@@ -731,7 +748,7 @@ class decision_transformer():
         self.reward_sequence = []
         self.state = None
         self.all_states = None
-        self.returns_to_go = [self.calc_neuroLs_rtg(tianshou_obs)]
+        self.return_to_go_sequence = [self.calc_neuroLs_rtg(tianshou_obs)]
 
 
 

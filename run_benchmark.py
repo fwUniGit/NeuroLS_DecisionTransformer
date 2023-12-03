@@ -21,6 +21,9 @@ def get_args():
     parser.add_argument('--data_dir', '-d', type=str,
                         default='./data/CVRP/benchmark/test')
     parser.add_argument('--group_id', '-g', nargs='+', default='')
+    parser.add_argument('--rtg_factor', '-f', type=float, default=1)
+    parser.add_argument('--dt_model_name', '-x', type=str, default='')
+    parser.add_argument('--dt_active', '-a', type=bool, default=False)
     parser.add_argument('--instance_pth', type=str, default=None)
     parser.add_argument('--problem', '-p', type=str, default='jssp')
     parser.add_argument('--model', '-m', type=str, default='meta')
@@ -42,7 +45,7 @@ def dict_from_str(s):
 
 def run():
     """Run specified solver on provided benchmark."""
-    os.chdir("wolz/projects/NeuroLS_DecisionTransformer/")
+ #   os.chdir("wolz/projects/NeuroLS_DecisionTransformer/")
     args = get_args()
     grps = deepcopy(args['group_id'])
     inst_pth = args['instance_pth']
@@ -50,7 +53,7 @@ def run():
         grps = [os.path.split(os.path.dirname(inst_pth))[-1]]
     for gid in grps:
         cwd = os.getcwd()
-        path = os.path.join(cwd, f"outputs_benchmark/")
+        path = os.path.join(cwd, f"outputs_experiment/")
         os.makedirs(path, exist_ok=True)
 
         args['group_id'] = gid
@@ -106,7 +109,11 @@ def run():
                 run_args = f"meta={args['eval_cfg']} " \
                            f"tester_cfg.test_env_cfg.data_file_path={data_pth} " \
                            f"tester_cfg.test_batch_size=1 " \
-                           f"tester_cfg.test_dataset_size=10 " \
+                           f"tester_cfg.test_dataset_size=1 " \
+                           f"tester_cfg.dt_model_name={args['dt_model_name']} " \
+                           f"tester_cfg.dt_active={args['dt_active']} " \
+                           f"tester_cfg.rtg_factor={round(args['rtg_factor'],2)} " \
+                           f"hydra.run.dir=outputs/{round(args['rtg_factor']),2} " \
                            f"tester_cfg.env_kwargs.num_steps={steps}"
             elif m == "meta":
                 run_args = f"policy={args['policy']} " \
@@ -193,7 +200,7 @@ def run():
             with open(out_path, "a") as o:
                 o.write(f"{res_str}\n")
 
-        results_str = {
+        results_str = {"":args['dt_model_name'],
             "cost_mean": np.mean(results["cost_mean"]),
             "cost_std": np.std(results["cost_mean"]),
             "num_vehicles_mean": np.mean(results["num_vehicles_mean"])
@@ -224,6 +231,7 @@ def run():
                 print(runtime)
         print("-------------------")
         print("makespan",results_str["cost_mean"],"makespan")
+        print("std",results_str["cost_std"],"std")
         print(results_str["num_vehicles_mean"])
         print(results_str["run_time_mean"])
         print(results_str["run_time_total"])

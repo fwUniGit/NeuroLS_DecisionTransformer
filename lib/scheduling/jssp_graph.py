@@ -611,6 +611,19 @@ class JSSPGraph:
         self.graph.add_edge(v, u, weight=nbh.pth[v].get("weight"), set=self.MCH)
         self._recompute_dists = True
 
+    def get_task_starting_times(self):
+        topological_order = list(nx.topological_sort(self.graph))
+        start_times = np.zeros(self.num_machines*self.num_jobs + 2)
+
+        for node in topological_order:
+            predecessors = list(self.graph.predecessors((node)))
+            if len(predecessors) == 0:
+                start_time = 0
+            else:
+                max_start_time = max([start_times[predecessor] + self.graph[predecessor][node]['weight'] for predecessor in predecessors])
+                start_time = max_start_time
+            start_times[node] = start_time
+        return start_times
 
 # ============= #
 # ### TEST #### #

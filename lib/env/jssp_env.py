@@ -73,6 +73,7 @@ class JSSPEnv(BaseEnv):
         self.nbh_edges = None
         self.nbh_weights = None
         self.current_instance_lower_bound = None
+        self.initial_hash = None
 
         self.run_until_query = False
         self.max_num_vec = 0
@@ -121,6 +122,9 @@ class JSSPEnv(BaseEnv):
             'nbh_weights': gym.spaces.Box(low=0, high=float('inf'), shape=(e_max,), dtype=self.float_prec),
             'meta_features': gym.spaces.Box(low=-float('inf'), high=float('inf'), shape=[8], dtype=self.float_prec),
             'instance_lower_bound': gym.spaces.Box(low=-float('inf'), high=float('inf'), shape=[1], dtype=self.float_prec),
+            'instance_hash': gym.spaces.Box(low=-float('inf'), high=float('inf'), shape=[1], dtype=self.float_prec),
+            'machine_sequence': gym.spaces.Box(low=-float('inf'), high=float('inf'), shape=[K,J], dtype=self.float_prec),
+            'starting_times': gym.spaces.Box(low=-float('inf'), high=float('inf'), shape=[K*J+2], dtype=self.float_prec)
         }
         return gym.spaces.Dict(dict_space)
 
@@ -136,6 +140,9 @@ class JSSPEnv(BaseEnv):
             'nbh_edges': self.nbh_edges,    # job graph
             'nbh_weights': self.nbh_weights,    # job graph weights
             'instance_lower_bound': self.current_instance_lower_bound,
+            'initial_hash': self.initial_hash,
+            'machine_sequence': self.graph.get_mch_seq(),
+            'starting_times': self.graph.get_task_starting_times(),
             'meta_features': np.array([
                 self.previous_accept,
                 self.previous_reward,
@@ -375,6 +382,7 @@ class JSSPEnv(BaseEnv):
         self._node_idx_set = np.arange(N)
         self.solver.load_problem(instance)
         self.graph, cost = self.solver.construct(**kwargs)
+        self.initial_hash = np.sum(self.graph.get_job_graph()[1])+sum(self.graph.longest_path_seq())
 
         sol_e, sol_w = self.graph.get_mch_graph()
         nbh_e, nbh_w = self.graph.get_job_graph()

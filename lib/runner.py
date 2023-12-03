@@ -356,6 +356,9 @@ class Runner:
             policy=self.policy,
             env=self.env,
             buffer=buf,
+            rtg_factor=tester_cfg.rtg_factor,
+            dt_model_name=tester_cfg.dt_model_name,
+            dt_active=tester_cfg.dt_active
         )
 
         # create callback
@@ -374,7 +377,8 @@ class Runner:
             episode_per_test=tester_cfg.test_dataset_size,
             monitor=monitor,
             render=0.0001 if render else 0,  # rendering is deactivated for render=0
-            num_render_eps=tester_cfg.get('num_render_eps', 1)
+            num_render_eps=tester_cfg.get('num_render_eps', 1),
+
         )
         logger.info(f"finished.")
         logger.info(results)
