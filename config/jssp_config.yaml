@@ -3,7 +3,7 @@
 
 defaults:
   - _self_
-  - env: jssp15x15_unf
+  - env: jssp50x20_unf
   - jssp_ls: se_cet_all
   - model: gnn_flat
   - policy: dqn

@@ -20,8 +20,8 @@ class Trainer:
         self.world_size = 4
         os.environ['MASTER_ADDR'] = 'localhost'  #
         os.environ['MASTER_PORT'] = '8123'  #
-        self.tokens = 0
         self.wb = True
+        self.tokens = 0
 
     def train(self):  # Number of gpus in Cassandra
         mp.spawn(self.parallel_train, args=(self.world_size,), nprocs=self.world_size)
@@ -103,7 +103,7 @@ class Trainer:
                             param_group['lr'] = lr
                     else:
                         lr = config.learning_rate
-
+                    
                 if gpu == 0:
                     print("TestPrint")
                     print('Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}, Learning Rate{}'.format(
@@ -113,17 +113,19 @@ class Trainer:
                         total_step,
                         loss.item(), lr)
                     )
+            group_losses = [None for _ in range(world_size)]
+            dist.all_gather_object(group_losses, np.mean(losses))
             if gpu == 0:
                 out = None
-                mean_loss = np.mean(losses)
-                if epoch % 50 == 0:
+                mean_loss = np.mean(group_losses)
+                if epoch % 20 == 0:
                     torch.save(model.module.state_dict(),
                                os.path.join(os.getcwd(),
                                             "wolz/projects/NeuroLS_DecisionTransformer/trained_model_nls.pt"))
                     path = os.path.join(os.getcwd(), "wolz/projects/NeuroLS_DecisionTransformer/run_benchmark.py")
                     path2 = os.path.join(os.getcwd(), "wolz/projects/NeuroLS_DecisionTransformer/run_nls_jssp.py")
-                    path3 = os.path.join(os.getcwd(), "wolz/projects/NeuroLS_DecisionTransformer/data/JSSP/")
-                    cmd = 'python ' + path + ' -r ' + path2 + ' -d ' + path3 + ' -g jssp15x15 -p jssp -m nls -e eval_jssp --args env=jssp15x15_unf -n 100'
+                    path3 = os.path.join(os.getcwd(), "wolz/projects/NeuroLS_DecisionTransformer/data/JSSP/jssp50x20/")
+                    cmd = 'python ' + path + ' -r ' + path2 + ' -d ' + path3 + ' -g Validation -p jssp -m nls -e eval_jssp --args env=jssp50x20_unf -n 200'
                     try:
                         print(os.getcwd())
                         out = sp.run(cmd.split(),
@@ -141,11 +143,11 @@ class Trainer:
                         if out is not None:
                             wandb.log({"mm": makespan})
                         wandb.log({"learning_rate": lr})
-                    if makespan < best_mean_makespan+5:
+                    if makespan < best_mean_makespan + 2:
                         best_mean_makespan = makespan
                         torch.save(model.module.state_dict(), os.path.join(os.getcwd(),
-                                            "wolz/projects/NeuroLS_DecisionTransformer/trained_model_nls_best.pt"))
-                        wandb.save("wolz/projects/NeuroLS_DecisionTransformer/trained_model_nls_best.pt")
+                                            "wolz/projects/NeuroLS_DecisionTransformer/trained_model_nls_best"+str(int(makespan))+".pt"))
+                        wandb.save("wolz/projects/NeuroLS_DecisionTransformer/trained_model_nls_best"+str(int(makespan))+".pt")
                 else:
                     print(mean_loss)
                     if self.wb:

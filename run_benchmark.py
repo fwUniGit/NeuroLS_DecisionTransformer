@@ -106,7 +106,7 @@ def run():
                 run_args = f"meta={args['eval_cfg']} " \
                            f"tester_cfg.test_env_cfg.data_file_path={data_pth} " \
                            f"tester_cfg.test_batch_size=1 " \
-                           f"tester_cfg.test_dataset_size=10 " \
+                           f"tester_cfg.test_dataset_size=1 " \
                            f"tester_cfg.env_kwargs.num_steps={steps}"
             elif m == "meta":
                 run_args = f"policy={args['policy']} " \
