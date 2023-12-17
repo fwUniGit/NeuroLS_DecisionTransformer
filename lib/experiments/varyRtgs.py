@@ -18,7 +18,7 @@ def vary_rtgs():
     mean_makespans = {}
     rtg_range = np.arange(0.25,1.8,0.05)
     os.chdir("/NeuroLS_DecisionTransformer/")
-    for i in rtg_range:
+    for i in rtg_range: #Runs the model for each rtg in rtg_range  on the dataset given in directory with flag -g
         out = None
         cmd = 'python ' + path + ' -r ' + path2 + ' -d ' + path3 + f' -g jssp30x20/test -p jssp -m nls -e eval_jssp --args env=jssp30x20_unf -n 200 -x {MODEL}  -a True -f '+ str(round(i,2))
         try:
@@ -58,7 +58,7 @@ def get_dt_schedules(rtg_range):
     dt_schedules = {}
     for i in rtg_range:
         dt_schedules[i] = {}
-        for filename in os.scandir(NLSDT_RESULTS_PATH+str(round(i,2))):
+        for filename in os.scandir(NLSDT_RESULTS_PATH+str(round(i,2))): # for each rtg_value each .npy file from the respective folder is returned
             if os.path.splitext(filename)[1] == ".npy":
                 sequence_data  = np.load(filename, allow_pickle=True)
                 dt_schedules[i][filename.name[0:-4]] = sequence_data
@@ -67,7 +67,7 @@ def get_dt_schedules(rtg_range):
 def get_nls_schedules():
     #Retrieves schedules solution files that were created during rtg-variation
     no_dt_schedules = {}
-    for filename in os.scandir(NLS_RESULTS_PATH):
+    for filename in os.scandir(NLS_RESULTS_PATH): #Uses each .npy file in specified path
         if os.path.splitext(filename)[1] == ".npy":
             sequence_data = np.load(filename, allow_pickle=True)
             no_dt_schedules[filename.name[0:-4]] = sequence_data
@@ -83,8 +83,8 @@ def calculate_influence_of_rtg_on_hamDistance(actions=False): #If actions is tru
     os.chdir("/NeuroLS_DecisionTransformer/newPlots")
     for i in rtg_range:
         mean_distance[i] = []
-        for schedule_id in dt_schedules[i]:
-            if schedule_id in nls_schedules:
+        for schedule_id in dt_schedules[i]: #schedule id is the unique filename in the rtg or nls folder
+            if schedule_id in nls_schedules: #Ensures that the instance was solved by nls and nlsdt
                 mean_distance[i].append(hamming_distance(np.asarray(dt_schedules[i][schedule_id][schedule_index]).flatten(), np.asarray(nls_schedules[schedule_id][schedule_index]).flatten()))
         #mean_distance[i] = mean_distance[i]/len(nls_schedules)
 
@@ -113,7 +113,6 @@ def hamming_distance(sequence1, sequence2):
         if sequence1[i] != sequence2[i]: counter += 1
     return counter
 
-
 def start_time_distance(dt, nls):
     sum = 0
     for i in range(len(nls)):
@@ -126,8 +125,8 @@ def calculate_influence_of_rtg_on__starttime_distance(rtg_range):
     nls_start_times = get_nls_schedules()
     for i in rtg_range:
         mean_distance[i] = []
-        for schedule_id in dt_start_times[i]:
-            if schedule_id in nls_start_times:
+        for schedule_id in dt_start_times[i]: #schedule id is the unique filename in the rtg or nls folder
+            if schedule_id in nls_start_times: #Ensures that the instance was solved by nls and nlsdt
                 mean_distance[i].append(start_time_distance(dt_start_times[i][schedule_id][0], nls_start_times[schedule_id][0]))
 
     lists = sorted(mean_distance.items())
@@ -152,7 +151,10 @@ def calculate_influence_of_rtg_on__starttime_distance(rtg_range):
 
 if __name__ == '__main__':
     rtg_range = np.arange(0.25,1.8,0.05)
-    vary_rtgs()
+    #vary_rtgs()
+    ''' For these experiments the nls.zip and nlsdt.zip in the experiment_outputs directory need to be unzipped.
+        Or alternatively create new files npy of the scheme in tianshou_utils.py:648 for instances to be compared
+    '''
     calculate_influence_of_rtg_on_hamDistance(actions=True)
     calculate_influence_of_rtg_on_hamDistance(actions=False)
     calculate_influence_of_rtg_on__starttime_distance(rtg_range)
