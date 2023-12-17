@@ -72,7 +72,7 @@ class CausalSelfAttention(nn.Module):
         # causal mask to ensure that attention is only applied to the left in the input sequence
         # self.register_buffer("mask", torch.tril(torch.ones(config.block_size, config.block_size))
         #                              .view(1, 1, config.block_size, config.block_size))
-        #NOTE im original wird block_size nicht mit 1 addiert, warum hier?
+
         self.register_buffer("mask", torch.tril(torch.ones(config.block_size*3 + 1, config.block_size*3 + 1))
                                      .view(1, 1, config.block_size*3 + 1, config.block_size*3 + 1))
         self.n_head = config.n_head
@@ -126,11 +126,11 @@ class GPT(nn.Module):
         self.config = config
 
         # input embedding stem
-        #self.tok_emb = nn.Embedding(config.vocab_size, config.n_embd) #NOTE Das wird garnicht verwendet???? #NOTE vocab_size is number of actions -> 6
+        #self.tok_emb = nn.Embedding(config.vocab_size, config.n_embd) #
         # self.pos_emb = nn.Parameter(torch.zeros(1, config.block_size, config.n_embd))
 
-        self.pos_emb = nn.Parameter(torch.zeros(1, config.block_size*3 + 1, config.n_embd)) #NOTE Wieder block_size +1
-        self.global_pos_emb = nn.Parameter(torch.zeros(1, config.max_timestep+1, config.n_embd)) # Max timesteps bei uns maximale anzahl an schritte (36)
+        self.pos_emb = nn.Parameter(torch.zeros(1, config.block_size*3 + 1, config.n_embd))
+        self.global_pos_emb = nn.Parameter(torch.zeros(1, config.max_timestep+1, config.n_embd)) # Max timesteps = max number of ls iteration (100/200)
         self.drop = nn.Dropout(config.embd_pdrop)
 
         # transformer
@@ -152,7 +152,6 @@ class GPT(nn.Module):
         self.action_embeddings = nn.Sequential(nn.Embedding(config.vocab_size, config.n_embd), nn.Tanh())
 
         nn.init.normal_(self.action_embeddings[0].weight, mean=0.0, std=0.02)
-        # NOTE ich versteh halt was das macht aber nicht warum man das macht
 
     def get_block_size(self):
         return self.block_size
@@ -224,20 +223,19 @@ class GPT(nn.Module):
 
         #state_embeddings = self.state_encoder(states.reshape(-1, 4, 84, 84).type(torch.float32).contiguous())  # (batch * block_size, n_embd)
         state_embeddings = self.state_encoder(states.reshape(-1, 128).type(torch.float32).contiguous())  # todo: ausprobieren ob ich das reshape hier benötige bzw ob das irgendeinen unterschied macht.
-        state_embeddings = state_embeddings.reshape(states.shape[0], states.shape[1], #note: state embedding wird erst auf (block_size*batch,57) gereshaped um es dann wieder auf (batch,block_size,57) zu shapen
-                                                    self.config.n_embd)  # (batch, block_size, n_embd) //NOTE:  Sollte theoretisch so bleiben können
-
+        state_embeddings = state_embeddings.reshape(states.shape[0], states.shape[1], #note: state embedding wird erst auf (block_size*batch,57)
+                                                    self.config.n_embd)  # (batch, block_size, n_embd)
         if actions is not None:
             rtg_embeddings = self.ret_emb(rtgs.type(torch.float32))
             action_embeddings = self.action_embeddings(
-                actions.type(torch.long).squeeze(-1))  # (batch, block_size, n_embd) # note: das squeeze und unsqueeze ist in meinen augen unnötig. Warum sollten wir das machen
+                actions.type(torch.long).squeeze(-1))  # (batch, block_size, n_embd) #
             # NOTE: Die folgenden Zeilen konkatinieren die einzelnen embeddings in ein token embedding Muss ich glaube ich nicht anpassen
             token_embeddings = torch.zeros(
                 (states.shape[0], states.shape[1] * 3 - int(targets is None), self.config.n_embd),
                 dtype=torch.float32, device=state_embeddings.device)
             token_embeddings[:, ::3, :] = rtg_embeddings
             token_embeddings[:, 1::3, :] = state_embeddings
-            token_embeddings[:, 2::3, :] = action_embeddings[:, -states.shape[1] + int(targets is None):,:]  # NOTE Geben wir somit nicht die richtige action schon mit in die prediction
+            token_embeddings[:, 2::3, :] = action_embeddings[:, -states.shape[1] + int(targets is None):,:]
         elif actions is None:  # only happens at very first timestep of evaluation
             rtg_embeddings = self.ret_emb(rtgs.type(torch.float32))
 

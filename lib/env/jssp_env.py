@@ -382,7 +382,7 @@ class JSSPEnv(BaseEnv):
         self._node_idx_set = np.arange(N)
         self.solver.load_problem(instance)
         self.graph, cost = self.solver.construct(**kwargs)
-        self.initial_hash = np.sum(self.graph.get_job_graph()[1])+sum(self.graph.longest_path_seq())
+        self.initial_hash = np.sum(self.graph.get_job_graph()[1])+sum(self.graph.longest_path_seq()) ##Defines unique name for the current instance in order to make comparison between nls and nlsdt possible.
 
         sol_e, sol_w = self.graph.get_mch_graph()
         nbh_e, nbh_w = self.graph.get_job_graph()

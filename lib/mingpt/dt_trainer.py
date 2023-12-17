@@ -69,7 +69,6 @@ class Trainer:
             raw_model = self.model.module if hasattr(self.model, "module") else self.model
             logger.info("saving %s", self.config.ckpt_path)
             torch.save(model.state_dict(), "trained_model.pt")
-            # torch.save(raw_model.state_dict(), self.config.ckpt_path) NOTE Warum ist das auskommentiert
 
     def train(self):
         model, config = self.model, self.config
@@ -77,7 +76,7 @@ class Trainer:
         optimizer = raw_model.configure_optimizers(config)
 
         def run_epoch(split, epoch_num=0):
-            is_train = (split == 'train')  # NOTE WAS??
+            is_train = (split == 'train')
             model.train(True)
             data = self.train_dataset
             loader = DataLoader(data, shuffle=True, pin_memory=True,
@@ -109,7 +108,6 @@ class Trainer:
                     optimizer.step()
 
                     # decay the learning rate based on our progress
-                    # TODO Wahrscheinlich keine anpassung nötig aber muss ich noch verstehen
                     if config.lr_decay:
                         self.tokens += (
                                 actions >= 0).sum()  # number of tokens processed this step (i.e. label is not -100)

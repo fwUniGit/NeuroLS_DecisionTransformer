@@ -11,7 +11,7 @@ if __name__ == '__main__':
   # List[List[Task]]
     np.random.seed(123)
 
-    with open("projects/NeuroLS_DecisionTransformer/lib/data_points_nls_flat.pkl", "rb") as handle:
+    with open("projects/NeuroLS_DecisionTransformer/lib/data_points_nls_flat.pkl", "rb") as handle: #load dataset created by create_dt_dataset notebook
         train_data = pickle.load(handle)
 
     train_dataset = StateActionReturnDataset(train_data, CONTEXT_LENGTH)
@@ -25,7 +25,8 @@ if __name__ == '__main__':
 
     tconf = dt_trainer.TrainerConfig(max_epochs=1200, batch_size=512, learning_rate=6e-4*32,
                           lr_decay=True, warmup_tokens=512*20, final_tokens=2*len(train_dataset)*CONTEXT_LENGTH,
-                          num_workers=4, seed=123, max_timestep=99)
-    trainer = dt_cassandra_trainer.Trainer(model, train_dataset, test_data, tconf) #NOTE Es wird kein Test Dataset verwendet
+                          num_workers=4, seed=123, max_timestep=99) #mas timesteps = number of LS iterations per instace
+    # Either load dt_cassandra_trainer for parrallel training on multiple gpus or dt_trainer for single gpu/cpu training.
+    trainer = dt_cassandra_trainer.Trainer(model, train_dataset, test_data, tconf)
 
     trainer.train()

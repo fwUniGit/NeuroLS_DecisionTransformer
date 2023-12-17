@@ -23,6 +23,7 @@
 
 # log files
 **.log
+!results_nls.log
 
 # directories
 plots
