@@ -498,7 +498,7 @@ class TestCollector(Collector):
         super().reset_env()
         self._ready_env_ids = np.arange(self.env_num)
 
-    def create_dt_dataset(self):
+    def create_dt_dataset(self): #Saves created data_points to current output dir
         with open('data_points_dt.pkl', 'wb') as f:
             pickle.dump(self.data_points, f)
 
@@ -583,6 +583,7 @@ class TestCollector(Collector):
             # update state / act / policy into self.data
             policy = result.get("policy", Batch())
             assert isinstance(policy, Batch)
+            #Either get action from NLS policy of from the DecisionTransformer
             if self.dt_active:
                 act = dt.get_sampled_action(step)
             else:
@@ -605,7 +606,7 @@ class TestCollector(Collector):
                           'reward': rew[0],
                           'makespan': self.data.obs[0]["meta_features"][2].item(), #meta_features[2] contains makespan
                           'returns_to_go': None,
-                          }
+                          } #see create_dt_dataset method for save
             current_instance.append(data_point)
             # change self.data here because ready_env_ids has changed
             ready_env_ids = np.array([i["env_id"] for i in info])

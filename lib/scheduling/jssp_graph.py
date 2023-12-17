@@ -612,12 +612,12 @@ class JSSPGraph:
         self._recompute_dists = True
 
     def get_task_starting_times(self):
-        topological_order = list(nx.topological_sort(self.graph))
-        start_times = np.zeros(self.num_machines*self.num_jobs + 2)
+        topological_order = list(nx.topological_sort(self.graph)) #sort nodes in topological order
+        start_times = np.zeros(self.num_machines*self.num_jobs + 2) # +2 for start and end node
 
         for node in topological_order:
-            predecessors = list(self.graph.predecessors((node)))
-            if len(predecessors) == 0:
+            predecessors = list(self.graph.predecessors((node))) #get predecessors of the current iterated node
+            if len(predecessors) == 0: # if node has no predecessor its start time is zero
                 start_time = 0
             else:
                 max_start_time = max([start_times[predecessor] + self.graph[predecessor][node]['weight'] for predecessor in predecessors])

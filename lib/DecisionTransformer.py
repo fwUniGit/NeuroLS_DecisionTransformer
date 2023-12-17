@@ -15,7 +15,7 @@ class DecisionTransformer():
         self.model_conf = dt_model.GPTConfig(vocab_size=10, block_size=50, n_layer=6, n_head=8, n_embd=128, max_timestep=199, observation_size=128)
         self.model_dt = dt_model.GPT(self.model_conf)
         print(os.getcwd())
-        self.model_dt.load_state_dict(torch.load("/NeuroLS_DecisionTransformer/lib/trained_models/" + dt_model_name , map_location=torch.device('cpu'))) #Need to set to your absolute
+        self.model_dt.load_state_dict(torch.load("/NeuroLS_DecisionTransformer/lib/trained_models/" + dt_model_name , map_location=torch.device('cpu'))) #Need to set to your absolute path
         self.agent = self.model_dt.to(self.device)
         self.agent.eval()
 

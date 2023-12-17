@@ -145,13 +145,13 @@ class Trainer:
             out = None
             loss = run_epoch('train', epoch_num=epoch)
             mean_loss = np.mean(loss)
-            if epoch % 20 == 0:
+            if epoch % 20 == 0: #Only run test every 20 steps
                 torch.save(model.module.state_dict(),
                            os.path.join(os.getcwd(),
-                                        "wolz/projects/NeuroLS_DecisionTransformer/trained_model_nls.pt"))
-                path = os.path.join(os.getcwd(), "wolz/projects/NeuroLS_DecisionTransformer/run_benchmark.py")
-                path2 = os.path.join(os.getcwd(), "wolz/projects/NeuroLS_DecisionTransformer/run_nls_jssp.py")
-                path3 = os.path.join(os.getcwd(), "wolz/projects/NeuroLS_DecisionTransformer/data/JSSP/jssp20x20/")
+                                        "/NeuroLS_DecisionTransformer/trained_model_nls.pt"))
+                path = os.path.join(os.getcwd(), "/NeuroLS_DecisionTransformer/run_benchmark.py")
+                path2 = os.path.join(os.getcwd(), "/NeuroLS_DecisionTransformer/run_nls_jssp.py")
+                path3 = os.path.join(os.getcwd(), "/NeuroLS_DecisionTransformer/data/JSSP/jssp20x20/")
                 cmd = 'python ' + path + ' -r ' + path2 + ' -d ' + path3 + ' -g Validation -p jssp -m nls -e eval_jssp --args env=jssp20x20_unf -n 200'
                 try:
                     print(os.getcwd())

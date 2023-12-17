@@ -17,14 +17,14 @@ class Trainer:
         self.train_dataset = train_dataset
         self.test_dataset = test_dataset
         self.config = config
-        self.world_size = 4
+        self.world_size = 2 # Number of gpus
         os.environ['MASTER_ADDR'] = 'localhost'  #
         os.environ['MASTER_PORT'] = '8123'  #
-        self.tokens = 0
         self.wb = True
+        self.tokens = 0
 
     def train(self):  # Number of gpus in Cassandra
-        mp.spawn(self.parallel_train, args=(self.world_size,), nprocs=self.world_size)
+        mp.spawn(self.parallel_train, args=(self.world_size,), nprocs=self.world_size) #runs paarallel_train() on each gpu
 
     def parallel_train(self, gpu, world_size):
         dist.init_process_group(
@@ -56,7 +56,7 @@ class Trainer:
         )
 
         train_loader = torch.utils.data.DataLoader(
-            dataset= self.train_dataset,
+            dataset=self.train_dataset,
             batch_size=config.batch_size,
             shuffle=False,
             num_workers=0,
@@ -113,17 +113,19 @@ class Trainer:
                         total_step,
                         loss.item(), lr)
                     )
+            group_losses = [None for _ in range(world_size)]
+            dist.all_gather_object(group_losses, np.mean(losses))
             if gpu == 0:
                 out = None
-                mean_loss = np.mean(losses)
-                if epoch % 50 == 0:
+                mean_loss = np.mean(group_losses)
+                if epoch % 20 == 0: #Only test model every 20 steps
                     torch.save(model.module.state_dict(),
-                                os.path.join(os.getcwd(),
+                               os.path.join(os.getcwd(),
                                             "wolz/projects/NeuroLS_DecisionTransformer/trained_model_nls.pt"))
                     path = os.path.join(os.getcwd(), "wolz/projects/NeuroLS_DecisionTransformer/run_benchmark.py")
                     path2 = os.path.join(os.getcwd(), "wolz/projects/NeuroLS_DecisionTransformer/run_nls_jssp.py")
-                    path3 = os.path.join(os.getcwd(), "wolz/projects/NeuroLS_DecisionTransformer/data/JSSP/")
-                    cmd = 'python ' + path + ' -r ' + path2 + ' -d ' + path3 + ' -g jssp15x15 -p jssp -m nls -e eval_jssp --args env=jssp15x15_unf -n 100'
+                    path3 = os.path.join(os.getcwd(), "wolz/projects/NeuroLS_DecisionTransformer/data/JSSP/jssp15x15/")
+                    cmd = 'python ' + path + ' -r ' + path2 + ' -d ' + path3 + ' -g Validation -p jssp -m nls -e eval_jssp --args env=jssp15x15_unf -n 200' #Change problem size if needed
                     try:
                         print(os.getcwd())
                         out = sp.run(cmd.split(),
@@ -141,11 +143,13 @@ class Trainer:
                         if out is not None:
                             wandb.log({"mm": makespan})
                         wandb.log({"learning_rate": lr})
-                    if makespan < best_mean_makespan+5:
+                    if makespan < best_mean_makespan + 2: #Give some tolerance in model saving
                         best_mean_makespan = makespan
                         torch.save(model.module.state_dict(), os.path.join(os.getcwd(),
-                                            "wolz/projects/NeuroLS_DecisionTransformer/trained_model_nls_best.pt"))
-                        wandb.save("wolz/projects/NeuroLS_DecisionTransformer/trained_model_nls_best.pt")
+                                                                           "wolz/projects/NeuroLS_DecisionTransformer/trained_model_nls_best" + str(
+                                                                               int(makespan)) + ".pt"))
+                        wandb.save("wolz/projects/NeuroLS_DecisionTransformer/trained_model_nls_best" + str(
+                            int(makespan)) + ".pt")
                 else:
                     print(mean_loss)
                     if self.wb:

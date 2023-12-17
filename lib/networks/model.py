@@ -253,7 +253,7 @@ class Model(nn.Module):
         emb = self.aggregator(
             prep_obs, emb, dims=(bs, self.node_max_dim, self.node_feature_dim)
         )
-        # TODO Take embedding after agregator
+        # NOTE: Take embedding after agregator for decision transformer
         self.current_aggregated_state = emb
         # decode
         return self.decoder(emb, state)
