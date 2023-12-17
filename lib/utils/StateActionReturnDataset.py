@@ -8,11 +8,11 @@ class StateActionReturnDataset(Dataset):
     def __init__(self, data: List[dict], context_length):
         self.data = data
         self.block_size = context_length
-        self.vocab_size = 10
-        self.problem_size = 100
+        self.vocab_size = 8
+        self.problem_size = 200
 
     def __len__(self):
-        return len(self.data) - self.block_size #TODO Überlegen warum wir block_size abziehen bzw warum im decision-transformer block_size*3 abgezogen wird
+        return len(self.data) - self.block_size
 
     def __getitem__(self, instance_id):
         instance_step_number = self.data[instance_id].get("step_number")
@@ -42,7 +42,7 @@ class StateActionReturnDataset(Dataset):
         #returns_to_go = torch.tensor(return_to_go_sequence_array, dtype=torch.long).unsqueeze(1) # (block_size, 1)
         returns_to_go = torch.tensor(return_to_go_sequence_array, dtype=torch.float64).unsqueeze(1) # (block_size, 1) #NOTE for neuro ls we need float rtgs
         timesteps = torch.tensor([self.data[instance_id].get("step_number")], dtype=torch.int64).unsqueeze(1) #(block_size, 1)
-        targets = torch.tensor(target_sequence_array, dtype=torch.long).unsqueeze(1) # (block_size, 1)
+            targets = torch.tensor(target_sequence_array, dtype=torch.long).unsqueeze(1) # (block_size, 1)
         #action_masks = torch.tensor(action_mask_sequence_array, dtype=torch.bool).unsqueeze(1)
 
         return states, actions, returns_to_go, timesteps, targets#, action_masks

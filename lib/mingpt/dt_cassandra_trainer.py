@@ -118,7 +118,7 @@ class Trainer:
                 mean_loss = np.mean(losses)
                 if epoch % 50 == 0:
                     torch.save(model.module.state_dict(),
-                               os.path.join(os.getcwd(),
+                                os.path.join(os.getcwd(),
                                             "wolz/projects/NeuroLS_DecisionTransformer/trained_model_nls.pt"))
                     path = os.path.join(os.getcwd(), "wolz/projects/NeuroLS_DecisionTransformer/run_benchmark.py")
                     path2 = os.path.join(os.getcwd(), "wolz/projects/NeuroLS_DecisionTransformer/run_nls_jssp.py")

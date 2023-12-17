@@ -53,7 +53,7 @@ def run():
         grps = [os.path.split(os.path.dirname(inst_pth))[-1]]
     for gid in grps:
         cwd = os.getcwd()
-        path = os.path.join(cwd, f"outputs_experiment/")
+        path = os.path.join(cwd, f"outputs_experiment/final/")
         os.makedirs(path, exist_ok=True)
 
         args['group_id'] = gid
@@ -109,11 +109,11 @@ def run():
                 run_args = f"meta={args['eval_cfg']} " \
                            f"tester_cfg.test_env_cfg.data_file_path={data_pth} " \
                            f"tester_cfg.test_batch_size=1 " \
-                           f"tester_cfg.test_dataset_size=1 " \
+                           f"tester_cfg.test_dataset_size=50 " \
                            f"tester_cfg.dt_model_name={args['dt_model_name']} " \
                            f"tester_cfg.dt_active={args['dt_active']} " \
                            f"tester_cfg.rtg_factor={round(args['rtg_factor'],2)} " \
-                           f"hydra.run.dir=outputs/{round(args['rtg_factor']),2} " \
+                           f"hydra.run.dir=outputs/{round(args['rtg_factor'],2)} " \
                            f"tester_cfg.env_kwargs.num_steps={steps}"
             elif m == "meta":
                 run_args = f"policy={args['policy']} " \

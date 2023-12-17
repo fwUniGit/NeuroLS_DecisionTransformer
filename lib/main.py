@@ -2,7 +2,7 @@
 import pickle
 import numpy as np
 from mingpt import dt_trainer, dt_model, dt_cassandra_trainer
-from utils.StateActionReturnDataset import StateActionReturnDataset
+from lib.utils.StateActionReturnDataset import StateActionReturnDataset
 
 # ___ CONSTANTS ___
 CONTEXT_LENGTH = 30

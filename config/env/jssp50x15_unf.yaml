@@ -31,4 +31,4 @@ tester_cfg:
   # overwrites for test env
   test_env_cfg:
     fixed_dataset: True
-    data_file_path: data/JSSP/jssp${num_jobs}x${num_machines}/data_test_seed234_size1000_${duration_dist}.pt
+    data_file_path: data/JSSP/jssp${num_jobs}x${num_machines}/data_test_seedist}.pt

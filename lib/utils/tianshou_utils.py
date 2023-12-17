@@ -636,7 +636,7 @@ class TestCollector(Collector):
                 episode_start_indices.append(ep_idx)
 
                 # now we copy obs_next to obs, but since there might be
-                # finished episodes, we have to reset finished envs first.
+                # finished episodes, we have to reset inished envs first.
                 obs_reset = self.env.reset(env_ind_global)
                 if self.preprocess_fn:
                     obs_reset = self.preprocess_fn(obs=obs_reset).get("obs", obs_reset)
@@ -645,8 +645,8 @@ class TestCollector(Collector):
                     self._reset_state(i)
                 step = 0
                 #if self.save_experiment_data:
-                # save = [self.data.obs.starting_times[0],self.data.obs.machine_sequence[0],actions]
-                # numpy.save(f"{self.data.obs.initial_hash[0]}.npy",save)
+                save = [self.data.obs.starting_times[0],self.data.obs.machine_sequence[0],actions, self.data.obs[0]["meta_features"][2].item()]
+                numpy.save(f"{self.data.obs.initial_hash[0]}.npy",save)
                 if self.dt_active: dt.reset(self.data.obs_next)
                 actions = []
 
