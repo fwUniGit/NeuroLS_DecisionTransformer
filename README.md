@@ -39,7 +39,7 @@ Watch out to add a space after the number in the string.
         <li>(Uncomment repsective <i>checkpoint:</i> </li>
         <li>test_dataset_size: Size of the dataset that is used for NLS-DT data creation.</li>
         <li>test_batch_size: Must be 1 for NLS-DT</li>
-        <li>Operator mode: <b>SET</b>(for NLS_A action space), <b>SELECT_LS**(for NLS_AN)</b>, <b>SELECT_LS+</b>(for NLS_ANP)</li>
+        <li>Operator mode: <b>SET</b>(for NLS_A action space), <b>SELECT_LS(for NLS_AN)</b>, <b>SELECT_LS+</b>(for NLS_ANP)</li>
         <li>num_steps: Number of iterations to run the local search per instance</li>
         <li>data_file_path: Path to instance file created with <i>create_jssp_val_test_sets.ipynb</i> notebook</li>
     </ul>
