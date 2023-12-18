@@ -129,7 +129,7 @@ class GPT(nn.Module):
         #self.tok_emb = nn.Embedding(config.vocab_size, config.n_embd) #
         # self.pos_emb = nn.Parameter(torch.zeros(1, config.block_size, config.n_embd))
 
-        self.pos_emb = nn.Parameter(torch.zeros(1, config.block_size*3 + 1, config.n_embd))
+        self.pos_emb = nn.Parameter(torch.zeros(1, config.block_size*3 + 1, config.n_embd)) #Times 3 because of three token state,actions,rtg
         self.global_pos_emb = nn.Parameter(torch.zeros(1, config.max_timestep+1, config.n_embd)) # Max timesteps = max number of ls iteration (100/200)
         self.drop = nn.Dropout(config.embd_pdrop)
 
@@ -195,7 +195,7 @@ class GPT(nn.Module):
 
         # special case the position embedding parameter in the root GPT module as not decayed
         no_decay.add('pos_emb')
-        no_decay.add('global_pos_emb')  # unterschied zu original weil wir irgendwelceh global embeddings haben
+        no_decay.add('global_pos_emb')
 
         # validate that we considered every parameter
         param_dict = {pn: p for pn, p in self.named_parameters()}
@@ -219,24 +219,24 @@ class GPT(nn.Module):
         # actions: (batch, block_size, 1)
         # targets: (batch, block_size, 1)
         # rtgs: (batch, block_size, 1)
-        # timesteps: (batch, 1, 1) #Warum nur 1 1 und nicht block_size
+        # timesteps: (batch, 1, 1)
 
-        #state_embeddings = self.state_encoder(states.reshape(-1, 4, 84, 84).type(torch.float32).contiguous())  # (batch * block_size, n_embd)
-        state_embeddings = self.state_encoder(states.reshape(-1, 128).type(torch.float32).contiguous())  # todo: ausprobieren ob ich das reshape hier benötige bzw ob das irgendeinen unterschied macht.
-        state_embeddings = state_embeddings.reshape(states.shape[0], states.shape[1], #note: state embedding wird erst auf (block_size*batch,57)
+
+        state_embeddings = self.state_encoder(states.reshape(-1, 128).type(torch.float32).contiguous())
+        state_embeddings = state_embeddings.reshape(states.shape[0], states.shape[1],
                                                     self.config.n_embd)  # (batch, block_size, n_embd)
         if actions is not None:
             rtg_embeddings = self.ret_emb(rtgs.type(torch.float32))
             action_embeddings = self.action_embeddings(
                 actions.type(torch.long).squeeze(-1))  # (batch, block_size, n_embd) #
-            # NOTE: Die folgenden Zeilen konkatinieren die einzelnen embeddings in ein token embedding Muss ich glaube ich nicht anpassen
+            # The following lines concat the single embeddings to one token embedding
             token_embeddings = torch.zeros(
                 (states.shape[0], states.shape[1] * 3 - int(targets is None), self.config.n_embd),
                 dtype=torch.float32, device=state_embeddings.device)
             token_embeddings[:, ::3, :] = rtg_embeddings
             token_embeddings[:, 1::3, :] = state_embeddings
             token_embeddings[:, 2::3, :] = action_embeddings[:, -states.shape[1] + int(targets is None):,:]
-        elif actions is None:  # only happens at very first timestep of evaluation
+        elif actions is None:  # only happens at very first timestep of inference phase when no action is predicted yet.
             rtg_embeddings = self.ret_emb(rtgs.type(torch.float32))
 
             token_embeddings = torch.zeros((states.shape[0], states.shape[1] * 2, self.config.n_embd),
@@ -247,9 +247,8 @@ class GPT(nn.Module):
             raise NotImplementedError()
 
         batch_size = states.shape[0]
-        all_global_pos_emb = torch.repeat_interleave(self.global_pos_emb, batch_size, dim=0)  # batch_size, traj_length, n_embd  #Packt den schmarn 128 mal hintereinander
+        all_global_pos_emb = torch.repeat_interleave(self.global_pos_emb, batch_size, dim=0)  # batch_size, traj_length, n_embd
 
-        # TODO Wirklich verstehen
         position_embeddings = torch.gather(all_global_pos_emb, 1,torch.repeat_interleave(timesteps, self.config.n_embd,dim=-1)) + self.pos_emb[:, :token_embeddings.shape[1], :]
 
         x = self.drop(token_embeddings + position_embeddings)
@@ -257,16 +256,20 @@ class GPT(nn.Module):
         x = self.ln_f(x)
         logits = self.head(x)
 
-        if actions is not None:  # TODO Warum state_embeddings und nicht action_embeddings
+
+        '''Logits are calcualted for the last block_size steps for each of the three embeddings
+           For the prediction only the logits of one embedding is necessary. (Original DT uses state_embedding)
+           So shape of logits is (batch_size, 3*block_size, emb_size)
+        '''
+        if actions is not None:
             logits = logits[:, 1::3, :]  # only keep predictions from state_embeddings
         elif actions is None:
             logits = logits[:, 1:, :]
         else:
             raise NotImplementedError()
 
-        # mask probabilities if action_mask is not None (for env.reset)
 
-        # if we are given some desired targets also calculate the loss
+        # calculate loss in training phase
         loss = None
         if targets is not None:
             loss = F.cross_entropy(logits.reshape(-1, logits.size(-1)), targets.reshape(-1))

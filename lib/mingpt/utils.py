@@ -38,10 +38,10 @@ def sample(model, state, steps, temperature=1.0, sample=False, top_k=None, actio
     model.eval()
     for k in range(steps):
         # x_cond = x if x.size(1) <= block_size else x[:, -block_size:] # crop context if needed
-        x_cond = state if state.size(1) <= block_size // 3 else state[:, -block_size // 3:] # crop context if needed #NOTE hier teilen wir wieder durch 3
+        x_cond = state if state.size(1) <= block_size // 3 else state[:, -block_size // 3:] ## only return the last context_length steps
         if actions is not None:
-            actions = actions if actions.size(1) <= block_size//3 else actions[:, -block_size//3:] # crop context if needed
-        rtgs = rtgs if rtgs.size(1) <= block_size//3 else rtgs[:, -block_size//3:] # crop context if needed
+            actions = actions if actions.size(1) <= block_size//3 else actions[:, -block_size//3:] # # only return the last context_length steps
+        rtgs = rtgs if rtgs.size(1) <= block_size//3 else rtgs[:, -block_size//3:] # # only return the last context_length steps
         logits, _ = model(x_cond, actions=actions, targets=None, rtgs=rtgs, timesteps=timesteps)
         # pluck the logits at the final step and scale by temperature
         logits = logits[:, -1, :] / temperature
