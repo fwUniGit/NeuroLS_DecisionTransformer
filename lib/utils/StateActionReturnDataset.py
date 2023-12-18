@@ -28,10 +28,6 @@ class StateActionReturnDataset(Dataset):
                                           for instance in self.data[datapoint_index:datapoint_index + self.block_size]])
         return_to_go_sequence_array = np.array([instance.get("returns_to_go")
                                                 for instance in self.data[datapoint_index:datapoint_index + self.block_size]])
-        rewards = np.array([instance.get("reward")
-                            for instance in self.data[datapoint_index:datapoint_index + self.block_size]])
-        action_mask_sequence_array = np.array([instance.get("action_mask")
-                                               for instance in self.data[datapoint_index:datapoint_index + self.block_size]])
 
         states = torch.tensor(observation_sequence_array, dtype=torch.float32).reshape(self.block_size, -1) #(block_size, 128)
         actions = torch.tensor(action_sequence_array, dtype=torch.long).unsqueeze(1) # (block_size, 1)
