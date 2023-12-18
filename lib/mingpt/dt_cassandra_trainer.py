@@ -86,7 +86,6 @@ class Trainer:
                     optimizer.step()
 
                     # decay the learning rate based on our progress
-                    # TODO Wahrscheinlich keine anpassung nötig aber muss ich noch verstehen
                     if config.lr_decay:
                         self.tokens += (
                                 actions >= 0).sum()  # number of tokens processed this step (i.e. label is not -100)
